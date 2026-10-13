@@ -1,0 +1,35 @@
+# ===== 密钥与环境（绝不入库）=====
+.env
+.env.*
+!.env.example
+
+# ===== 虚拟环境 =====
+.venv/
+.uv-cache/
+venv/
+
+# ===== Python 产物 =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ===== 测试与工具缓存 =====
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.iml
+
+# ===== 本地工具产物（DSH 沙箱权限报告等）=====
+.dsh-acl-reports/
+*.log
+logs/
