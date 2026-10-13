@@ -12,6 +12,13 @@
 
 Python 3.11+ / FastAPI / LangChain + LangGraph / PostgreSQL(+pgvector) / Redis + Celery / Docker / OpenAI 兼容模型 API（Qwen 等）；爬虫 Scrapy/Playwright；邮件 smtplib 或 SES/Postmark。
 
+### 环境基线（2026-10-13 钉死）
+
+- **Python 3.12**（`.python-version` = 3.12，`requires-python = ">=3.12,<3.13"`）。此前版本混乱（venv 3.12 / 记忆 3.13 / IDE 3.14），已统一。
+- 包管理用 **uv**；沙箱内需设 `UV_CACHE_DIR=D:\YXAgent\.uv-cache`，否则 uv 默认缓存在用户目录会因权限被拒。
+- 依赖已在 `pyproject.toml` 按五层架构分组声明完整栈；`uv sync --all-groups` 可复现环境。
+- **注意**：受限沙箱模式下无法写入 `app/`、`.venv/`、`docs/` 等既有子目录（详见 2026-10-13 日志），开发时建议切「完全权限」。
+
 ## 开发规范（见 D:/YXAgent/DEVELOPING.md，最重要）
 
 1. 讨论先行：需求没聊清楚前不写代码、不建文件、不生成文档。
