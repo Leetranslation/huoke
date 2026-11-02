@@ -43,3 +43,6 @@ celerybeat-schedule*
 
 # ===== 工具产物 =====
 .workbuddy/
+
+*.tmp_*
+
