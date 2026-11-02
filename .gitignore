@@ -33,3 +33,13 @@ htmlcov/
 .dsh-acl-reports/
 *.log
 logs/
+
+# ===== 前端 =====
+frontend/node_modules/
+frontend/dist/
+
+# ===== Celery =====
+celerybeat-schedule*
+
+# ===== 工具产物 =====
+.workbuddy/
