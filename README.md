@@ -141,6 +141,26 @@ uv run celery -A app.core.celery_app beat --loglevel=info
 
 ---
 
+## 测试
+
+```bash
+uv run pytest
+# 50 passed in ~5s
+```
+
+单元测试覆盖核心判断逻辑（全部离线，不调 LLM / 不连数据库）：
+
+| 测试文件 | 覆盖内容 | 用例数 |
+|---|---|---|
+| `test_followup_graph.py` | 跟进状态机决策（首封 / 间隔等待 / 达上限 / 终止态） | 13 |
+| `test_send_rules.py` | 发送前三道停止规则（未批准 / 重复发送 / 客户终止） | 10 |
+| `test_filters.py` | 线索过滤（新闻/机构/栏目页）+ 邮箱分级（HR/学校剔除） | 12 |
+| `test_entity_parse.py` | LLM 输出解析（裸 JSON / 带围栏 / 混杂文本）+ 域名推断公司名 | 15 |
+
+`tests/` 下的其它文件是手工验证脚本（`diag_*` / `e2e_*`），不参与 pytest 收集。
+
+---
+
 ## 关键设计决策
 
 **1. 不用「是否打开邮件」做跟进决策**

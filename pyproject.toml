@@ -46,4 +46,6 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit"]
+addopts = "-q"
+# tests/ 下的手工脚本（diag_*/e2e_*）不参与收集，只跑 tests/unit
