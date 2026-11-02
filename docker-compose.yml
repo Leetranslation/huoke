@@ -1,4 +1,5 @@
 services:
+  # ---------- 数据 ----------
   db:
     image: postgres:16
     container_name: yxagent-db
@@ -28,6 +29,80 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # ---------- 后端 API ----------
+  api:
+    build: .
+    container_name: yxagent-api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    env_file:
+      - .env
+    environment:
+      # 容器内用服务名互访，覆盖 .env 里的 localhost
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/yxagent
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8001:8001"
+    volumes:
+      # 挂载源码 → 改代码自动重载（--reload）
+      - .:/app
+      # 保留镜像里装好的 .venv，不被宿主机覆盖
+      - /app/.venv
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------- Celery worker ----------
+  worker:
+    build: .
+    container_name: yxagent-worker
+    command: celery -A app.core.celery_app worker --loglevel=info --pool=solo
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/yxagent
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - .:/app
+      - /app/.venv
+    depends_on:
+      api:
+        condition: service_started
+
+  # ---------- Celery beat（定时调度）----------
+  beat:
+    build: .
+    container_name: yxagent-beat
+    command: celery -A app.core.celery_app beat --loglevel=info
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/yxagent
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - .:/app
+      - /app/.venv
+    depends_on:
+      api:
+        condition: service_started
+
+  # ---------- 前端 ----------
+  frontend:
+    build: ./frontend
+    container_name: yxagent-frontend
+    environment:
+      # 容器内代理到 api 服务
+      VITE_API_TARGET: http://api:8001
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      api:
+        condition: service_started
 
 volumes:
   db_data:

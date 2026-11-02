@@ -4,15 +4,16 @@
 注意：需设置 PLAYWRIGHT_NODEJS_PATH 指向系统 node（本机 Playwright 内置 node 有兼容问题）。
 """
 
+import logging
 import os
 import re
 from urllib.parse import quote
 
+from app.datasources.base import CompanyRaw, DataSource
+
+logger = logging.getLogger(__name__)
+
 os.environ.setdefault("PLAYWRIGHT_NODEJS_PATH", r"C:\Program Files\nodejs\node.exe")
-
-from playwright.sync_api import sync_playwright  # noqa: E402
-
-from app.datasources.base import CompanyRaw, DataSource  # noqa: E402
 
 BASE = "https://www.europages.co.uk"
 UA = (
@@ -38,6 +39,13 @@ class EuropagesDataSource(DataSource):
         self._max = max_companies
 
     def fetch(self) -> list[CompanyRaw]:
+        # 延迟导入：playwright 是可选的（本地装了，Docker 镜像里没装）
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            logger.warning("playwright 未安装，Europages 数据源不可用；请改用 tavily")
+            return []
+
         results: list[CompanyRaw] = []
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, channel="chromium")

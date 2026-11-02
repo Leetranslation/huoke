@@ -19,6 +19,7 @@ from app.services.followup_service import FollowUpService
 
 logger = logging.getLogger(__name__)
 
+# 默认值兜底（真实取值见 settings.follow_up_*，可用环境变量覆盖）
 FOLLOW_UP_INTERVAL_DAYS = 4
 MAX_STEPS = 5
 
@@ -76,8 +77,8 @@ def daily_scan() -> dict:
         scanned = len(contacts)
         service = FollowUpService(
             db,
-            max_steps=MAX_STEPS,
-            follow_up_interval_days=FOLLOW_UP_INTERVAL_DAYS,
+            max_steps=settings.follow_up_max_steps,
+            follow_up_interval_days=settings.follow_up_interval_days,
         )
         writer = EmailWriter(LLMClient())
 

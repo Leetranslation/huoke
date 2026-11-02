@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     # 测试客户邮箱（每个获客任务自动注入，用于验证邮件追踪）
     test_contact_email: str = ""
 
+    # 自动跟进参数
+    follow_up_interval_days: int = 4  # 距上次发送超过多少天发跟进信
+    follow_up_max_steps: int = 5  # 最多跟进轮次（含首封）
+
     # JWT
     secret_key: str = "change-me-to-a-random-secret"
     access_token_expire_minutes: int = 1440

@@ -138,6 +138,8 @@ uv run celery -A app.core.celery_app beat --loglevel=info
 | `SMTP_HOST/USER/PASSWORD` | 发信 | 邮箱设置里开 SMTP 拿授权码 |
 | `IMAP_*` | 收信（复用 SMTP 账号） | 同上，需额外开 IMAP 服务 |
 | `PUBLIC_BASE_URL` | 邮件追踪像素的公网地址 | 本地测试用内网穿透，线上填域名 |
+| `FOLLOW_UP_INTERVAL_DAYS` | 跟进间隔天数（默认 4） | 可选，按业务节奏调 |
+| `FOLLOW_UP_MAX_STEPS` | 最多跟进轮次（默认 5） | 可选，防止过度骚扰 |
 
 ---
 
@@ -236,7 +238,6 @@ users ──< campaigns ──< companies ──< contacts ──< emails ──
 | 限制 | 原因 | 上线方案 |
 |---|---|---|
 | 无多租户 | 单用户演示项目 | 加 `user_id` 隔离 + JWT 鉴权 |
-| 跟进间隔写死 4 天 / 5 轮 | 配置页未接后端 | 移到 `campaigns` 表或配置表 |
 | 追踪像素依赖临时隧道 | 本地无固定公网 IP | 部署后填域名 |
 | 无数据导出 | 未实现 | 加 CSV 导出接口 |
 | 免费搜索额度有限 | Tavily 1000 次/月 | 换 Serper / Bing API 或付费档 |
