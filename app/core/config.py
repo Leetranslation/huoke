@@ -21,10 +21,22 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
-    # 大模型
-    dashscope_api_key: str = ""
-    llm_model: str = "qwen-plus"
-    llm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    # 大模型（OpenAI 兼容，默认 DeepSeek，可换 Qwen/GLM 等）
+    llm_api_key: str = ""
+    llm_model: str = "deepseek-chat"
+    llm_base_url: str = "https://api.deepseek.com"
+
+    # Apify（ImportYeti 海关数据爬虫）
+    apify_token: str = ""
+
+    # Tavily 搜索（找客户数据源，免费 1000 次/月）
+    tavily_api_key: str = ""
+
+    # 邮件追踪用的公网地址（本地测试填隧道地址，线上填域名）
+    public_base_url: str = "http://127.0.0.1:8001"
+
+    # 测试客户邮箱（每个获客任务自动注入，用于验证邮件追踪）
+    test_contact_email: str = ""
 
     # JWT
     secret_key: str = "change-me-to-a-random-secret"
