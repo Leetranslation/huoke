@@ -3,6 +3,7 @@
 优先用 DeepSeek Fetch API（无反爬、返回 Markdown），失败回退 httpx。
 """
 
+import asyncio
 import re
 from dataclasses import dataclass
 
@@ -56,7 +57,8 @@ class ContactRaw:
 class ContactExtractor:
     """从公司官网提取邮箱（首页优先，最多尝试 3 个页面）。"""
 
-    def __init__(self, timeout: float = 8.0, use_deepseek: bool = True):
+    def __init__(self, timeout: float = 6.0, use_deepseek: bool = False):
+        # DeepSeekFetch 单次要 17 秒，命中率还低；默认用 httpx，拿不到交给搜索引擎兜底
         self._fetcher = DeepSeekFetcher() if use_deepseek else None
         self._timeout = timeout
 
@@ -64,24 +66,30 @@ class ContactExtractor:
         """兼容旧调用（异步版无长连接需关闭）。"""
 
     async def extract(self, website: str, max_emails: int = 3) -> list[ContactRaw]:
-        """从官网提取邮箱；website 为空或失败返回空列表。"""
+        """从官网提取邮箱；website 为空或失败返回空列表。
+
+        3 个候选页面并发抓取（原来串行，每家要等 3 次 Fetch API）。
+        """
         if not website or not website.startswith("http"):
             return []
 
         base = website.rstrip("/")
-        found: dict[str, ContactRaw] = {}
-        attempts = 0
+        # 只抓最可能出邮箱的 2 个页面，并发
+        urls = [base + p for p in CONTACT_PATHS[:2]]
+        texts = await asyncio.gather(
+            *[self._get_text(u) for u in urls], return_exceptions=True
+        )
 
-        for path in CONTACT_PATHS:
-            if len(found) >= max_emails or attempts >= 3:
-                break
-            attempts += 1
-            text = await self._get_text(base + path)
-            if not text:
+        found: dict[str, ContactRaw] = {}
+        for text in texts:
+            if not isinstance(text, str) or not text:
                 continue
             for email in self._find_emails(text):
-                if email.lower() not in {k.lower() for k in found}:
-                    found[email] = ContactRaw(email=email)
+                if len(found) >= max_emails:
+                    break
+                found.setdefault(email.lower(), ContactRaw(email=email))
+            if len(found) >= max_emails:
+                break
 
         return list(found.values())
 

@@ -65,6 +65,7 @@
             <span class="step-name">{{ s.name }}</span>
           </div>
           <p class="step-desc">{{ s.desc }}</p>
+          <span v-if="s.progress" class="step-progress" :class="{ full: s.done }">{{ s.progress }}</span>
           <button
             class="step-btn"
             :class="{ primary: s.active, done: s.done }"
@@ -239,11 +240,12 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { campaignApi, contactApi } from '../api'
 
 const route = useRoute()
+const router = useRouter()
 const campaign = ref(null)
 const companies = ref([])
 const contactsAll = ref([])
@@ -268,6 +270,15 @@ const profiledCount = computed(
 const companyIds = computed(() => new Set(companies.value.map((c) => c.id)))
 const contactsCount = computed(
   () => contactsAll.value.filter((c) => companyIds.value.has(c.company_id)).length
+)
+// 有联系人的公司数（用于判断"提取联系人"是否真的覆盖了全部公司）
+const companiesWithContact = computed(
+  () =>
+    new Set(
+      contactsAll.value
+        .filter((c) => companyIds.value.has(c.company_id))
+        .map((c) => c.company_id)
+    ).size
 )
 const doneSteps = computed(() => steps.value.filter((s) => s.done).length)
 
@@ -303,8 +314,13 @@ const steps = computed(() => [
     key: 'profile',
     name: 'AI 画像评分',
     desc: '逐家分析业务、需求信号与匹配分',
-    done: profiledCount.value > 0,
+    // 必须覆盖全部公司才算完成，只有部分画像时显示进度
+    done: companies.value.length > 0 && profiledCount.value === companies.value.length,
     active: companies.value.length > 0 && profiledCount.value === 0,
+    progress:
+      companies.value.length > 0
+        ? `${profiledCount.value}/${companies.value.length}`
+        : '',
     btn: '开始画像',
     loading: profiling.value,
     run: profileAll,
@@ -313,8 +329,15 @@ const steps = computed(() => [
     key: 'contacts',
     name: '提取联系人',
     desc: '从官网与搜索引擎抓取决策人邮箱',
-    done: contactsCount.value > 0,
-    active: profiledCount.value > 0 && contactsCount.value === 0,
+    // 必须覆盖全部公司才算完成
+    done:
+      companies.value.length > 0 &&
+      companiesWithContact.value === companies.value.length,
+    active: profiledCount.value > 0 && companiesWithContact.value === 0,
+    progress:
+      companies.value.length > 0
+        ? `${companiesWithContact.value}/${companies.value.length}`
+        : '',
     btn: '提取联系人',
     loading: extracting.value,
     run: extractContacts,
@@ -327,7 +350,7 @@ const steps = computed(() => [
     active: contactsCount.value > 0,
     btn: '去邮件中心',
     loading: false,
-    run: () => (window.location.hash = '#/leads'),
+    run: () => router.push('/emails'),
   },
 ])
 
@@ -490,6 +513,12 @@ void importing
 .step-idx svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 .step-name { font-size: 11.5px; font-weight: 700; color: #0f172a; }
 .step-desc { font-size: 10px; color: #94a3b8; line-height: 1.5; flex: 1; margin: 0; }
+.step-progress {
+  align-self: flex-start; font-size: 9.5px; font-weight: 700; color: #4f46e5;
+  background: #eef2ff; border: 1px solid #e0e7ff; padding: 1px 6px; border-radius: 4px;
+  font-variant-numeric: tabular-nums; margin-bottom: 2px;
+}
+.step-progress.full { color: #047857; background: #ecfdf5; border-color: #d1fae5; }
 .step-btn {
   height: 26px; border-radius: 6px; border: 1px solid #e2e8f0; background: #fff;
   color: #475569; font-size: 10.5px; font-weight: 600; cursor: pointer; white-space: nowrap;

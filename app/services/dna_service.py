@@ -53,7 +53,7 @@ class DnaService:
 
         text = await DeepSeekFetcher().fetch(url)
         if text:
-            return text[:6000]
+            return text[:3000]  # 3000 字符足够识别产品与客户类型，6000 会让 LLM 慢一倍
 
         try:
             async with httpx.AsyncClient(
@@ -67,6 +67,6 @@ class DnaService:
             raw = re.sub(r"<style.*?</style>", " ", raw, flags=re.S | re.I)
             raw = re.sub(r"<[^>]+>", " ", raw)
             raw = re.sub(r"\s+", " ", raw)
-            return raw.strip()[:6000]
+            return raw.strip()[:3000]
         except Exception:  # noqa: BLE001
             return ""

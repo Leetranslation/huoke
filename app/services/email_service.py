@@ -22,6 +22,7 @@ class EmailService:
             company.profile or {},
             contact_name=contact.name,
             contact_title=contact.title,
+            country=company.country or "",
         )
         email = Email(
             campaign_id=company.campaign_id,

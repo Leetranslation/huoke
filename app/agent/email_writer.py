@@ -34,13 +34,14 @@ class EmailWriter:
         profile: dict,
         contact_name: str = "",
         contact_title: str = "",
+        country: str = "",
     ) -> EmailDraft:
         messages = [
             {"role": "system", "content": EMAIL_SYSTEM},
             {
                 "role": "user",
                 "content": build_email_prompt(
-                    product, company_name, profile, contact_name, contact_title
+                    product, company_name, profile, contact_name, contact_title, country
                 ),
             },
         ]

@@ -59,14 +59,60 @@ EMAIL_SYSTEM = """你是一名资深 B2B 外贸开发信撰写专家。根据销
 要求：
 1. 开头提到对方公司的具体业务或需求（个性化，拒绝群发腔）
 2. 突出产品与对方的关联价值
-3. 正文简短（英文 80-120 词），有明确的行动号召（CTA）
+3. 篇幅简短：80-130 词（或对应语言约 150-260 字），有明确的行动号召（CTA）
 4. 语气专业、真诚、不浮夸
+5. **必须使用用户消息里指定的「邮件语言」书写主题和正文**，不要自行换成英文
+   - 语种参考：中国=简体中文、日本=日语、韩国=韩语、德国=德语、法国=法语、俄罗斯=俄语、西班牙/墨西哥=西班牙语、巴西/葡萄牙=葡萄牙语、意大利=意大利语、荷兰=荷兰语、波兰=波兰语、土耳其=土耳其语、泰国=泰语、越南=越南语、印尼=印尼语、沙特/阿联酋=阿拉伯语
+   - 没列出的国家用英文
 
 只输出 JSON，不要输出其他内容。格式：
 {
-  "subject": "邮件主题（英文）",
-  "body": "邮件正文（英文，含称呼与落款）"
+  "subject": "邮件主题（与指定语言一致）",
+  "body": "邮件正文（与指定语言一致，含称呼与落款）"
 }"""
+
+# 国家 → 邮件语言（键用小写，匹配时做包含判断）
+COUNTRY_LANG: list[tuple[tuple[str, ...], str]] = [
+    (("china", "中国", "cn", "prc"), "简体中文"),
+    (("taiwan", "台湾"), "繁体中文"),
+    (("hong kong", "香港", "macau", "macao", "澳门"), "繁体中文"),
+    (("japan", "日本"), "日语"),
+    (("korea", "韩国", "korea, south"), "韩语"),
+    (("germany", "deutschland", "德国"), "德语"),
+    (("france", "法国"), "法语"),
+    (("russia", "俄罗斯"), "俄语"),
+    (("spain", "españa", "mexico", "argentina", "chile", "colombia", "peru", "西班牙", "墨西哥"), "西班牙语"),
+    (("brazil", "brasil", "portugal", "巴西", "葡萄牙"), "葡萄牙语"),
+    (("italy", "italia", "意大利"), "意大利语"),
+    (("netherlands", "holland", "荷兰"), "荷兰语"),
+    (("poland", "polska", "波兰"), "波兰语"),
+    (("turkey", "türkiye", "土耳其"), "土耳其语"),
+    (("thailand", "泰国"), "泰语"),
+    (("vietnam", "viet nam", "越南"), "越南语"),
+    (("indonesia", "印尼", "印度尼西亚"), "印尼语"),
+    (("saudi", "uae", "united arab emirates", "egypt", "qatar", "kuwait", "沙特", "阿联酋", "埃及"), "阿拉伯语"),
+    (("czech", "捷克"), "捷克语"),
+    (("sweden", "瑞典"), "瑞典语"),
+    (("denmark", "丹麦"), "丹麦语"),
+    (("norway", "挪威"), "挪威语"),
+    (("finland", "芬兰"), "芬兰语"),
+]
+
+
+def _resolve_language(country: str) -> str:
+    """按国家解析邮件语言；识别不出就用英文。"""
+    c = (country or "").strip().lower()
+    if not c:
+        return "英文"
+    for keys, lang in COUNTRY_LANG:
+        if any(k in c for k in keys):
+            return lang
+    return "英文"
+
+
+def _is_chinese_region(country: str) -> bool:
+    """判断目标公司是否在中国（含港澳台）。"""
+    return _resolve_language(country) in ("简体中文", "繁体中文")
 
 
 def build_email_prompt(
@@ -75,13 +121,17 @@ def build_email_prompt(
     profile: dict,
     contact_name: str,
     contact_title: str,
+    country: str = "",
 ) -> str:
     """构建开发信生成的用户消息。"""
     signals = profile.get("demand_signals", [])
     signals_text = ", ".join(signals) if signals else "无"
+    lang = _resolve_language(country)
     return (
         f"销售方产品：{product}\n\n"
         f"目标公司：{company_name}\n"
+        f"公司所在国家：{country or '未知'}\n"
+        f"邮件语言：{lang}（主题和正文都必须用{lang}书写）\n"
         f"行业：{profile.get('industry', '')}\n"
         f"需求信号：{signals_text}\n"
         f"匹配理由：{profile.get('match_reason', '')}\n"

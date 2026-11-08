@@ -227,7 +227,7 @@ def _ensure_test_contact(db: Session, campaign_id: int) -> None:
         campaign_id=campaign_id,
         name="测试客户（追踪验证）",
         website="",
-        country="China",
+        country="TEST",  # 不写 China，避免在客户池里被误认为中国买家
         industry="测试",
         description="用于验证邮件打开/点击追踪的固定测试客户",
         identity="buyer",
@@ -281,51 +281,59 @@ async def crawl_leads(
     per_type = max(1, max_companies // len(specs))
     classifier = IdentityClassifier(llm)
 
-    # 1. 分类型搜索（每类取前 2 个关键词）
-    raws: list = []
-    seen: set[str] = set()
+    # 1. 分类型搜索 —— 并发执行（原来是串行，10 次搜索 + 10 次抽取要 37 秒）
     extractor = EntityExtractor(llm)
-    for spec in specs:
-        for kw in spec["keywords"][:2]:
-            query = f"{kw} {country}".strip()
+    tasks: list[tuple[str, str]] = [
+        (spec["name"], kw) for spec in specs for kw in spec["keywords"][:2]
+    ]
+    sem_search = asyncio.Semaphore(5)
+
+    async def search_one(industry: str, kw: str) -> list[CompanyRaw]:
+        """单个关键词：搜索 + LLM 实体抽取，返回该关键词下的公司。"""
+        query = f"{kw} {country}".strip()
+        async with sem_search:
             try:
                 if data_source == "tavily":
                     source = TavilyDataSource(query, count=per_type)
-                    source.fetch()  # 触发请求，raw_results 就位
-                    # LLM 从搜索结果里抽出真实公司（过滤文章/目录/机构/栏目页）
-                    for item in await extractor.extract(source.raw_results):
-                        key = (item["website"] or item["name"]).lower().rstrip("/")
-                        if not key or key in seen:
-                            continue
-                        seen.add(key)
-                        raws.append(
+                    # 同步 httpx 放线程池，避免阻塞事件循环
+                    await asyncio.to_thread(source.fetch)
+                    items = await extractor.extract(source.raw_results)
+                    out = []
+                    for item in items:
+                        out.append(
                             CompanyRaw(
                                 name=item["name"],
                                 website=item["website"],
                                 country=item["country"],
-                                industry=spec["name"],
+                                industry=industry,
                                 description=item["description"],
                                 source="tavily",
                             )
                         )
-                elif data_source == "europages":
+                    return out
+                if data_source == "europages":
                     source = EuropagesDataSource(query, max_companies=per_type)
-                    for raw in source.fetch():
-                        key = (raw.website or raw.name).lower().rstrip("/")
-                        if key and key not in seen:
-                            seen.add(key)
-                            raw.industry = spec["name"]
-                            raws.append(raw)
+                    raws = await asyncio.to_thread(source.fetch)
                 else:
                     source = DeepSeekSearchDataSource(query, count=per_type)
-                    for raw in source.fetch():
-                        key = (raw.website or raw.name).lower().rstrip("/")
-                        if key and key not in seen:
-                            seen.add(key)
-                            raw.industry = spec["name"]
-                            raws.append(raw)
+                    raws = await asyncio.to_thread(source.fetch)
+                for raw in raws:
+                    raw.industry = industry
+                return raws
             except Exception:  # noqa: BLE001
-                continue
+                return []
+
+    batches = await asyncio.gather(
+        *[search_one(industry, kw) for industry, kw in tasks]
+    )
+    raws = []
+    seen: set[str] = set()
+    for batch in batches:
+        for raw in batch:
+            key = (raw.website or raw.name).lower().rstrip("/")
+            if key and key not in seen:
+                seen.add(key)
+                raws.append(raw)
 
     # 2. 规则过滤（文章页）+ 3. 身份分类
     created: list[Company] = []
@@ -385,19 +393,33 @@ async def extract_contacts(
         raise HTTPException(404, "campaign not found")
 
     companies = db.query(Company).filter(Company.campaign_id == campaign_id).all()
+    # 预查已有联系人的公司，避免在并发块里做同步 DB 查询（会阻塞事件循环）
+    company_ids = [c.id for c in companies]
+    existing_ids: set[int] = set()
+    if company_ids:
+        existing_ids = {
+            cid
+            for (cid,) in db.query(Contact.company_id)
+            .filter(Contact.company_id.in_(company_ids))
+            .distinct()
+        }
+
     extractor = ContactExtractor()
     searcher = EmailSearcher() if use_search else None
-    sem = asyncio.Semaphore(5)
+    sem = asyncio.Semaphore(10)  # 原来是 5，12 家公司要跑 3 批
 
     async def one(company: Company) -> int:
+        if company.id in existing_ids:
+            return 0
         async with sem:
-            if db.query(Contact).filter(Contact.company_id == company.id).count():
-                return 0
             try:
-                emails = [
-                    c.email
-                    for c in await extractor.extract(company.website, max_emails=2)
-                ]
+                emails: list[str] = []
+                # 有官网才爬，没官网直接走搜索
+                if company.website:
+                    emails = [
+                        c.email
+                        for c in await extractor.extract(company.website, max_emails=2)
+                    ]
                 if not emails and searcher:
                     emails = await searcher.search(company.name, company.website)
                 emails = _rank_emails(emails)  # 剔除 HR/系统邮箱，采购类排前面
